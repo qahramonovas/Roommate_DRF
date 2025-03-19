@@ -1,6 +1,48 @@
+from django.apps import apps
+from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models import CharField, TextChoices, PositiveIntegerField, EmailField, Model, ImageField, IntegerField, \
+    ForeignKey, CASCADE, FileField, TextField, SET_NULL, SmallIntegerField, DateTimeField, ManyToManyField
 from django.db.models import Model, CharField, ForeignKey, CASCADE, SET_NULL, ImageField, BooleanField, TextField, \
-    IntegerField, DateTimeField, EmailField, FloatField
+    IntegerField, DateTimeField, EmailField, FloatField, TextChoices
+
+
+class CustomUserManager(BaseUserManager):
+    def _create_user(self,  email, password, **extra_fields):
+        if not email:
+            raise ValueError("The given email must be set")
+        email = self.normalize_email(email)
+        GlobalUserModel = apps.get_model(
+            self.model._meta.app_label, self.model._meta.object_name
+        )
+        email = GlobalUserModel.normalize_username(email)
+        user = self.model( email=email, **extra_fields)
+        user.password = make_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_user(self,email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", False)
+        extra_fields.setdefault("is_superuser", False)
+        return self._create_user( email, password, **extra_fields)
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+
+        return self._create_user( email, password, **extra_fields)
+
+
+
 
 
 #   =========================================================
@@ -35,18 +77,29 @@ class Gender(Model):
 
 
 #   =========================================================
-class User(Model):
-    first_name = CharField(max_length=255)
-    last_name = CharField(max_length=255)
-    email = EmailField()
-    phone_number = CharField(max_length=12)
+class User(AbstractUser):
+    class UserRole(TextChoices):
+        ADMIN = 'admin', 'Admin'
+        USER = 'user', 'User'
+        RENTER = 'renter', 'Renter'
+    objects = CustomUserManager()
+    EMAIL_FIELD = 'email'
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []
+    username = None
+    first_name = CharField(max_length=255, null=True, blank=True)
+    last_name = CharField(max_length=255, null=True, blank=True)
+    email = EmailField(unique=True)
+    phone_number = CharField(max_length=12, null=True, blank=True)
     gender = ForeignKey('apps.Gender',on_delete=SET_NULL, null=True, related_name='users')
-    university = ForeignKey('apps.University',on_delete=CASCADE, related_name='users')
+    university = ForeignKey('apps.University',on_delete=CASCADE, related_name='users', null=True, blank=True)
     password = CharField(max_length=10)
-    image = ImageField(upload_to='media/users/')
-    invisible = BooleanField(default=False)
-    region = ForeignKey('apps.Region', on_delete=CASCADE, related_name='users')
-    district = ForeignKey('apps.District', on_delete=CASCADE, related_name='users')
+    image = ImageField(upload_to='media/users/', null=True, blank=True)
+    invisible = BooleanField(default=False, null=True, blank=True)
+    region = ForeignKey('apps.Region', on_delete=CASCADE, related_name='users', null=True, blank=True)
+    district = ForeignKey('apps.District', on_delete=CASCADE, related_name='users', null=True, blank=True)
+    role = CharField(max_length=255, null=True, blank=True, choices=UserRole.choices, default=UserRole.USER)
+
 
 
 
